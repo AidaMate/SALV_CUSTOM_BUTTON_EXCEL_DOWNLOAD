@@ -1,0 +1,185 @@
+*&---------------------------------------------------------------------*
+*& Include          ZLO_CONSEGNATO_MAG_TOP
+*&---------------------------------------------------------------------*
+TABLES: ekko, matdoc.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-t01.
+  PARAMETERS p_budat TYPE matdoc-budat OBLIGATORY.
+
+  SELECT-OPTIONS: s_zasn   FOR ekko-zasn_id, "Numero ASN
+                  s_werks1 FOR matdoc-werks, "Magazzino di Spedizione
+                  s_werks2 FOR matdoc-werks. "Negozio di Consegna
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-t02.
+  PARAMETERS: p_t RADIOBUTTON GROUP dis, "Tutti
+              p_r RADIOBUTTON GROUP dis, "Ricevuti
+              p_s RADIOBUTTON GROUP dis, "Spediti
+              p_d RADIOBUTTON GROUP dis. "Discrepanze
+SELECTION-SCREEN END OF BLOCK b2.
+
+TYPES: BEGIN OF t_matdoc,
+         mblnr TYPE matdoc-mblnr,
+         mjahr TYPE matdoc-mjahr,
+         zeile TYPE matdoc-zeile,
+         budat TYPE matdoc-budat,
+         frbnr TYPE matdoc-frbnr,
+         ebeln TYPE matdoc-ebeln,
+         ebelp TYPE matdoc-ebelp,
+         matnr TYPE matdoc-matnr,
+         charg TYPE matdoc-charg,
+         menge TYPE matdoc-menge,
+         wempf TYPE matdoc-wempf,
+         bldat TYPE matdoc-bldat,
+         werks TYPE matdoc-werks,
+       END OF t_matdoc,
+
+       tt_matdoc TYPE TABLE OF t_matdoc.
+
+TYPES: BEGIN OF t_ekkoekpo,
+         ebeln      TYPE ekko-ebeln,
+         ebelp      TYPE ekpo-ebelp,
+         zasn_id    TYPE ekko-zasn_id,
+         zprep_mode TYPE ekpo-zprep_mode,
+         zprep_wh   TYPE ekpo-zprep_wh,
+       END OF t_ekkoekpo,
+
+       tt_ekkoekpo TYPE TABLE OF t_ekkoekpo.
+
+TYPES: BEGIN OF t_ekbe,
+         ebeln TYPE ekbe-ebeln,
+         ebelp TYPE ekbe-ebelp,
+         vgabe TYPE ekbe-vgabe,
+         belnr TYPE ekbe-belnr,
+         bwart TYPE ekbe-bwart,
+         budat TYPE ekbe-budat,
+       END OF t_ekbe,
+       tt_ekbe TYPE TABLE OF t_ekbe.
+
+TYPES: BEGIN OF t_disc_i,
+         ebeln   TYPE zlo_disc_i-ebeln,
+         ebelp   TYPE zlo_disc_i-ebelp,
+         zswerks TYPE zlo_disc_i-zswerks,
+         zrwerks TYPE zlo_disc_i-zrwerks,
+         exidv   TYPE zlo_disc_i-exidv,
+         matnr   TYPE zlo_disc_i-matnr,
+         rmblnr  TYPE zlo_disc_i-rmblnr,
+         zmenge2 TYPE zlo_disc_i-zmenge2,
+         zmenge3 TYPE zlo_disc_i-zmenge3,
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+         zsign   TYPE zlo_disc_i-zsign,
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+       END OF t_disc_i,
+
+       tt_disc_i TYPE TABLE OF t_disc_i.
+
+TYPES: BEGIN OF t_mara,
+         matnr TYPE mara-matnr,
+         mtart TYPE mara-mtart,
+         matkl TYPE mara-matkl,
+         maktx TYPE makt-maktx,
+       END OF t_mara,
+
+       tt_mara TYPE TABLE OF t_mara.
+
+TYPES: BEGIN OF t_mcha,
+         matnr TYPE mcha-matnr,
+         werks TYPE mcha-werks,
+         charg TYPE mcha-charg,
+         licha TYPE mcha-licha,
+       END OF t_mcha,
+
+       tt_mcha TYPE TABLE OF t_mcha.
+
+TYPES: BEGIN OF t_ekes,
+         ebeln    TYPE ekes-ebeln,
+         ebelp    TYPE ekes-ebelp,
+         etens    TYPE ekes-etens,
+         vbeln    TYPE ekes-vbeln,
+         vbelp    TYPE ekes-vbelp,
+         vbeln_st TYPE ekes-vbeln_st,
+         vbelp_st TYPE ekes-vbelp_st,
+       END OF t_ekes,
+       tt_ekes TYPE TABLE OF t_ekes.
+
+TYPES: BEGIN OF t_vekpvepo,
+         vbeln TYPE vepo-vbeln,
+         posnr TYPE vepo-posnr,
+         venum TYPE vekp-venum,
+         exidv TYPE vekp-exidv,
+       END OF t_vekpvepo,
+
+       tt_vekpvepo TYPE TABLE OF t_vekpvepo.
+
+TYPES: BEGIN OF t_output,
+         budat1     TYPE matdoc-budat,   "Data di consegna
+         werks1     TYPE matdoc-werks,   "Magazzino di spedizione
+         werks2     TYPE matdoc-werks,   "PdV destinatario
+         zasn_id    TYPE ekko-zasn_id,   "Codice ASN
+         sscc       TYPE vekp-exidv,     "SSCC
+         bldat      TYPE matdoc-bldat,   "Data Bolla
+         frbnr      TYPE matdoc-frbnr,   "Numero Bolla
+         matnr      TYPE mara-matnr,     "Codice Articolo
+         maktx      TYPE makt-maktx,     "Descrizione
+         mtart      TYPE mara-mtart,     "Tipo Materiale
+         matkl      TYPE mara-matkl,     "Codice RGC
+         charg      TYPE matdoc-charg,   "Partita Spedizione
+         licha      TYPE mcha-licha,     "Partita originale
+         zprep_mode TYPE ekpo-zprep_mode, "Tipo movimentazione
+         zprep_wh   TYPE ekpo-zprep_wh,  "Magazzino di preparazione
+         budat2     TYPE matdoc-budat,   "Data di Ricevimento
+         menge      TYPE matdoc-menge,   "Pezzi/KG spediti
+         zmenge2    TYPE zlo_disc_i-zmenge2, "Pezzi/KG ricevuti
+         zmenge3    TYPE zlo_disc_i-zmenge3, "Pezzi/KG discrepanza
+         mblnr1     TYPE matdoc-mblnr, "UM
+         mblnr2     TYPE matdoc-mblnr, "EM
+         ebeln      TYPE matdoc-ebeln,
+         ebelp      TYPE matdoc-ebelp, "OdA
+       END OF t_output,
+
+       tt_output TYPE TABLE OF t_output.
+
+CONSTANTS: gc_x TYPE xfeld VALUE 'X'.
+
+RANGES:
+        gr_bwart_em FOR matdoc-bwart.
+
+DATA: gt_matdoc_um TYPE tt_matdoc,
+      gt_ekkoekpo  TYPE tt_ekkoekpo,
+      gt_ekbe      TYPE tt_ekbe,
+      gt_disc_i    TYPE tt_disc_i,
+      gt_mara      TYPE tt_mara,
+      gt_mcha      TYPE tt_mcha,
+      gt_ekes      TYPE tt_ekes,
+      gt_vekpvepo  TYPE tt_vekpvepo,
+      gt_output    TYPE tt_output.
+
+DATA g_stop.
+
+*-- cl_salv_table data
+DATA: gr_table     TYPE REF TO cl_salv_table.
+DATA: gr_columns   TYPE REF TO cl_salv_columns_table.
+DATA: gr_column    TYPE REF TO cl_salv_column_table.
+DATA: gr_events    TYPE REF TO cl_salv_events_table.
+
+types: BEGIN OF ls_header,
+        field type string,
+      END OF  ls_header.
+
+DATA: lt_header type STANDARD TABLE OF ls_header,
+      wa_header like line of lt_header.
+
+*-----------------
+* class definition
+*
+
+*-----------------------------------
+* class lcl_handle_events
+*
+CLASS lcl_handle_events DEFINITION.
+  PUBLIC SECTION.
+    METHODS: on_click FOR EVENT added_function OF cl_salv_events.
+ENDCLASS.                    "lcl_handle_events DEFINITION
+
+DATA: event_handler TYPE REF TO lcl_handle_events.

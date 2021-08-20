@@ -1,0 +1,958 @@
+*&---------------------------------------------------------------------*
+*& Include          ZLO_CONSEGNATO_MAG_F01
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Form extraction
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM extraction .
+
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+*  CHECK g_stop IS INITIAL.
+
+  IF s_werks1[] IS INITIAL AND
+     s_werks2[] IS INITIAL.
+*    g_stop = 'X'.
+    MESSAGE 'Valorizzare il Magazzino o il Negozio'(001) TYPE 'S' DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+
+
+  CASE gc_x.
+
+    WHEN p_t.
+      PERFORM extract_t.
+    WHEN p_r.
+      PERFORM extract_r.
+    WHEN p_s.
+      PERFORM extract_s.
+    WHEN p_d.
+      PERFORM extract_d.
+  ENDCASE.
+
+  IF gt_matdoc_um[] IS INITIAL.
+    MESSAGE 'Nessun dato estratto'(011) TYPE 'S'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form elaboration
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM elaboration .
+
+  DATA ls_output TYPE t_output.
+
+  LOOP AT gt_matdoc_um ASSIGNING FIELD-SYMBOL(<fs_matdoc>).
+    ls_output-budat1 = p_budat. "Data competenza UM
+    ls_output-werks1  = <fs_matdoc>-werks.
+    ls_output-werks2  = <fs_matdoc>-wempf.
+
+    READ TABLE gt_ekkoekpo ASSIGNING FIELD-SYMBOL(<fs_ekkoekpo>)
+    WITH KEY ebeln = <fs_matdoc>-ebeln
+             ebelp = <fs_matdoc>-ebelp
+    BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      ls_output-zasn_id    = <fs_ekkoekpo>-zasn_id.
+      ls_output-zprep_wh   = <fs_ekkoekpo>-zprep_wh.
+      ls_output-zprep_mode = <fs_ekkoekpo>-zprep_mode.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 2
+    ELSE.
+      CLEAR ls_output-zasn_id.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 2
+    ENDIF.
+
+
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+    IF s_zasn IS NOT INITIAL.
+      IF ls_output-zasn_id IN s_zasn.
+* OK do nothing
+      ELSE.
+        CONTINUE."skip
+      ENDIF.
+    ENDIF.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+
+    ls_output-bldat = <fs_matdoc>-bldat.
+    ls_output-frbnr = <fs_matdoc>-frbnr.
+    ls_output-matnr = <fs_matdoc>-matnr.
+
+    READ TABLE gt_mara ASSIGNING FIELD-SYMBOL(<fs_mara>)
+    WITH KEY matnr = <fs_matdoc>-matnr
+    BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      ls_output-mtart = <fs_mara>-mtart.
+      ls_output-matkl = <fs_mara>-matkl.
+      ls_output-maktx = <fs_mara>-maktx.
+    ENDIF.
+
+    ls_output-charg  = <fs_matdoc>-charg.
+    ls_output-menge  = <fs_matdoc>-menge.
+    ls_output-mblnr1 = <fs_matdoc>-mblnr.
+
+    READ TABLE gt_ekbe ASSIGNING FIELD-SYMBOL(<fs_ekbe_101>)
+    WITH KEY ebeln = <fs_matdoc>-ebeln
+             ebelp = <fs_matdoc>-ebelp
+             vgabe = '1'
+             bwart = '101'.
+    IF sy-subrc EQ 0.
+      ls_output-mblnr2 = <fs_ekbe_101>-belnr.
+      ls_output-budat2 = <fs_ekbe_101>-budat.
+    ENDIF.
+
+*    READ TABLE gt_ekbe ASSIGNING FIELD-SYMBOL(<fs_ekbe_643>)
+*      WITH KEY ebeln = <fs_matdoc>-ebeln
+*             ebelp = <fs_matdoc>-ebelp.
+**             vgabe = '6'
+**             bwart = '643'.
+*    IF sy-subrc EQ 0.
+    READ TABLE gt_ekes ASSIGNING FIELD-SYMBOL(<fs_ekes>)
+      WITH KEY ebeln = <fs_matdoc>-ebeln
+               ebelp = <fs_matdoc>-ebelp.
+    IF sy-subrc EQ 0.
+      READ TABLE gt_vekpvepo ASSIGNING FIELD-SYMBOL(<fs_vekpvepo>)
+      WITH KEY vbeln = <fs_ekes>-vbeln
+               posnr = <fs_ekes>-vbelp.
+      IF sy-subrc EQ 0.
+        ls_output-sscc = <fs_vekpvepo>-exidv.
+      ENDIF.
+
+    ENDIF.
+
+    READ TABLE gt_mcha ASSIGNING FIELD-SYMBOL(<fs_mcha>)
+    WITH KEY matnr = <fs_matdoc>-matnr
+             werks = <fs_matdoc>-werks
+             charg = <fs_matdoc>-charg.
+    IF sy-subrc EQ 0.
+      ls_output-licha = <fs_mcha>-licha.
+    ENDIF.
+
+*    READ TABLE gt_disc_i ASSIGNING FIELD-SYMBOL(<fs_disc_i>)
+*    WITH KEY ebeln = <fs_matdoc>-ebeln
+*             ebelp = <fs_matdoc>-ebelp.
+*    IF sy-subrc EQ 0.
+*      ls_output-zmenge3 = <fs_disc_i>-zmenge3.
+*    ENDIF.
+    ls_output-zmenge2 = <fs_matdoc>-menge.
+    ls_output-ebeln   = <fs_matdoc>-ebeln.
+    ls_output-ebelp   = <fs_matdoc>-ebelp.
+
+    LOOP AT gt_disc_i ASSIGNING FIELD-SYMBOL(<fs_disc_i>) WHERE ebeln = <fs_matdoc>-ebeln AND ebelp = <fs_matdoc>-ebelp.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+      CLEAR ls_output-zmenge3.
+      IF p_d EQ space.
+        ls_output-zmenge3 = <fs_disc_i>-zmenge3.
+        ls_output-zmenge2 = ls_output-menge + ls_output-zmenge3.
+        APPEND ls_output TO gt_output.
+      ELSEIF p_d = 'X' AND ls_output-werks1(2) = 'MU'.
+        ls_output-zmenge3 = <fs_disc_i>-zmenge3.
+        ls_output-zmenge2 = ls_output-menge + ls_output-zmenge3.
+        APPEND ls_output TO gt_output.
+      ENDIF.
+      CLEAR ls_output-zmenge3.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+    ENDLOOP.
+    IF sy-subrc NE 0 AND p_d NE 'X'.
+      ls_output-zmenge2 = ls_output-menge + ls_output-zmenge3.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+      APPEND ls_output TO gt_output.
+    ENDIF.
+  ENDLOOP.
+
+  IF p_s NE 'X'.
+    CLEAR ls_output.
+    LOOP AT gt_disc_i ASSIGNING <fs_disc_i> WHERE ebelp = '00000'.
+
+      ls_output-budat1  = p_budat.
+      ls_output-werks1  = <fs_disc_i>-zswerks.
+      ls_output-werks2  = <fs_disc_i>-zrwerks.
+      ls_output-matnr   = <fs_disc_i>-matnr.
+      ls_output-sscc    = <fs_disc_i>-exidv.
+      ls_output-ebeln   = <fs_disc_i>-ebeln.
+      ls_output-ebelp   = <fs_disc_i>-ebelp.
+      ls_output-zmenge3 = <fs_disc_i>-zmenge3.
+
+      READ TABLE gt_mara ASSIGNING <fs_mara>
+      WITH KEY matnr = <fs_disc_i>-matnr
+      BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        ls_output-mtart = <fs_mara>-mtart.
+        ls_output-matkl = <fs_mara>-matkl.
+        ls_output-maktx = <fs_mara>-maktx.
+      ENDIF.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+      ls_output-zmenge2 = ls_output-menge + ls_output-zmenge3.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+      APPEND ls_output TO gt_output.
+    ENDLOOP.
+
+    SORT gt_output BY ebeln ebelp .
+
+  ENDIF.
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form display
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM display .
+
+  IF gt_output[] IS INITIAL.
+    MESSAGE 'Nessun dato estratto'(011) TYPE 'S'.
+  ELSE.
+    DATA: lr_table     TYPE REF TO cl_salv_table,
+          lr_message   TYPE REF TO cx_salv_msg,
+          lr_columns   TYPE REF TO cl_salv_columns_table,
+          lr_functions TYPE REF TO cl_salv_functions_list.
+DATA: l_tabledescr_ref TYPE REF TO cl_abap_tabledescr,
+      l_descr_ref      TYPE REF TO cl_abap_structdescr,
+      wa_table         TYPE abap_compdescr.
+
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+    DATA: gr_layout TYPE REF TO cl_salv_layout.
+    DATA: lv_key    TYPE salv_s_layout_key.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+    TRY.
+
+
+        cl_salv_table=>factory(
+        IMPORTING
+          r_salv_table = lr_table
+        CHANGING
+          t_table = gt_output ).
+
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+        gr_layout =  lr_table->get_layout( ).
+        lv_key-report = sy-repid.
+        gr_layout->set_key( lv_key ).
+        gr_layout->set_save_restriction( cl_salv_layout=>restrict_none ).
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+        lr_table->set_screen_status(
+
+        pfstatus = 'ZSTANDARD'
+
+        report = sy-repid
+
+        set_functions = lr_table->c_functions_all ).
+        lr_columns = lr_table->get_columns( ).
+
+L_TABLEDESCR_REF ?= CL_ABAP_TYPEDESCR=>DESCRIBE_BY_DATA( GT_OUTPUT ).
+L_DESCR_REF ?= L_TABLEDESCR_REF->GET_TABLE_LINE_TYPE( ).
+
+  LOOP AT L_DESCR_REF->COMPONENTS INTO WA_TABLE.
+       move WA_TABLE-name to wa_header-field.
+       append wa_header to lt_header.
+
+  ENDLOOP.
+
+
+*-- events
+       "events
+       GR_EVENTS = LR_TABLE->GET_EVENT( ).
+       CREATE OBJECT EVENT_HANDLER.
+       SET HANDLER EVENT_HANDLER->ON_CLICK FOR GR_EVENTS.
+*
+*        lr_columns = lr_table->get_columns( ).
+*        PERFORM change_columns_text USING lr_columns.
+*        lr_functions = lr_table->get_functions( ).
+**        lr_functions->set_default( abap_true ).
+*        lr_functions->set_export_spreadsheet( abap_true ).
+*        lr_functions->set_all( abap_true ).
+
+
+      CATCH cx_salv_msg .
+      CATCH cx_salv_existing cx_salv_wrong_call.
+    ENDTRY.
+    lr_table->display( ).
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form extract_t
+*&---------------------------------------------------------------------*
+*& T - Tutti i record: UM+EM, Discrepanze
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM extract_t .
+
+  PERFORM matdoc_um.
+  PERFORM ekkoekpo.
+  PERFORM ekbe.
+  PERFORM zlo_disc_i.
+  PERFORM maramakt.
+  PERFORM mcha.
+  PERFORM ekes.
+  PERFORM vekpvepo.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form extract_r
+*&---------------------------------------------------------------------*
+*& R - Solo Ricevuto: solo record per cui esiste EM
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM extract_r .
+
+  PERFORM matdoclikp_1.
+  PERFORM ekkoekpo.
+  PERFORM ekbe.
+  PERFORM zlo_disc_i.
+  PERFORM maramakt.
+  PERFORM mcha.
+  PERFORM ekes.
+  PERFORM vekpvepo.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form extract_s
+*&---------------------------------------------------------------------*
+*& S - Solo Spedito: solo record di UM senza EM
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM extract_s .
+
+  PERFORM matdoclikp_2.
+  PERFORM ekkoekpo.
+  PERFORM ekbe.
+  PERFORM zlo_disc_i.
+  PERFORM maramakt.
+  PERFORM mcha.
+  PERFORM ekes.
+  PERFORM vekpvepo.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form extract_d
+*&---------------------------------------------------------------------*
+*& D - Solo Discrepanze
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM extract_d .
+
+  PERFORM matdoczlo_disc_i.
+  PERFORM ekkoekpo.
+  PERFORM ekbe.
+  PERFORM zlo_disc_i.
+  PERFORM maramakt.
+  PERFORM mcha.
+  PERFORM ekes.
+  PERFORM vekpvepo.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form matdoc_um
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM matdoc_um .
+
+  SELECT mblnr,
+         mjahr,
+         zeile,
+         budat,
+         frbnr,
+         ebeln,
+         ebelp,
+         matnr,
+         charg,
+         menge,
+         wempf,
+         bldat,
+         werks
+  FROM matdoc INNER JOIN zlo_consegnato
+  ON  matdoc~bwart EQ zlo_consegnato~bwart
+  AND matdoc~grund EQ zlo_consegnato~grund
+  INTO TABLE @gt_matdoc_um
+  WHERE budat EQ @p_budat
+    AND werks IN @s_werks1
+    AND wempf IN @s_werks2
+    AND charg NE @space.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form bwart_em
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM bwart_em .
+
+  gr_bwart_em-sign = 'I'.
+  gr_bwart_em-option = 'EQ'.
+  gr_bwart_em-low = '101'.
+  APPEND gr_bwart_em.
+  CLEAR gr_bwart_em.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form ekkoekpoekbe
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM ekkoekpo.
+
+  CHECK gt_matdoc_um[] IS NOT INITIAL.
+
+  SELECT ekko~ebeln,
+         ekpo~ebelp,
+         ekko~zasn_id,
+         ekpo~zprep_mode,
+         ekpo~zprep_wh
+ FROM ( ekko INNER JOIN ekpo ON ekko~ebeln EQ ekpo~ebeln )
+INTO TABLE @gt_ekkoekpo
+FOR ALL ENTRIES IN @gt_matdoc_um
+WHERE ekko~ebeln EQ @gt_matdoc_um-ebeln
+  AND ekpo~ebelp EQ @gt_matdoc_um-ebelp
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+  AND ekko~zasn_id IN @s_zasn  .
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+  SORT gt_ekkoekpo BY ebeln ebelp.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form maramakt
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM maramakt .
+
+  DATA lt_matlist TYPE tt_matdoc.
+
+  lt_matlist[] = gt_matdoc_um[].
+
+  SORT lt_matlist BY matnr.
+  DELETE ADJACENT DUPLICATES FROM lt_matlist COMPARING matnr.
+
+  CHECK lt_matlist[] IS NOT INITIAL.
+
+  SELECT mara~matnr,
+         mara~mtart,
+         mara~matkl,
+         makt~maktx
+  FROM mara INNER JOIN makt ON mara~matnr EQ makt~matnr
+  INTO TABLE @gt_mara
+  FOR ALL ENTRIES IN @lt_matlist
+  WHERE mara~matnr EQ @lt_matlist-matnr
+    AND makt~spras EQ 'I'.
+
+  SORT gt_mara BY matnr.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form zlo_disc_i
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM zlo_disc_i .
+
+  CHECK gt_ekkoekpo[] IS NOT INITIAL.
+
+  SELECT ebeln,
+         ebelp,
+         zswerks,
+         zrwerks,
+         exidv,
+         matnr,
+         rmblnr,
+         zmenge2,
+         zmenge3,
+* * DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+         zsign
+* * DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+  FROM zlo_disc_i INTO TABLE @gt_disc_i
+  FOR ALL ENTRIES IN @gt_ekkoekpo
+  WHERE ebeln EQ @gt_ekkoekpo-ebeln
+*    AND ebelp EQ @gt_ekkoekpo-ebelp
+     AND zstatus_disc = '2'
+* * DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+     AND ( mescod = 'TRN' OR mescod = 'TAN' ) .
+
+  LOOP AT gt_disc_i ASSIGNING FIELD-SYMBOL(<disc>).
+    IF <disc>-zsign = '-'.
+      <disc>-zmenge3 = <disc>-zmenge3 * -1 .
+    ENDIF.
+  ENDLOOP.
+
+* * DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form matdoclikp
+*&---------------------------------------------------------------------*
+*& LIKP-WBSTK = C
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM matdoclikp_1.
+
+  SELECT matdoc~mblnr,
+         matdoc~mjahr,
+         matdoc~zeile,
+         matdoc~budat,
+         matdoc~frbnr,
+         matdoc~ebeln,
+         matdoc~ebelp,
+         matdoc~matnr,
+         matdoc~charg,
+         matdoc~menge,
+         matdoc~wempf,
+         matdoc~bldat,
+         matdoc~werks
+  FROM ( ( matdoc INNER JOIN zlo_consegnato
+                          ON  matdoc~bwart EQ zlo_consegnato~bwart
+                          AND matdoc~grund EQ zlo_consegnato~grund )
+  INNER JOIN likp ON matdoc~xblnr EQ likp~vbeln )
+  INTO TABLE @gt_matdoc_um
+  WHERE matdoc~budat EQ @p_budat
+    AND matdoc~werks IN @s_werks1
+    AND matdoc~wempf IN @s_werks2
+    AND matdoc~charg NE @space
+    AND likp~wbstk EQ 'C'.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form matdoclikp
+*&---------------------------------------------------------------------*
+*& LIKP-WBSTK <> C
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM matdoclikp_2.
+
+  SELECT matdoc~mblnr,
+         matdoc~mjahr,
+         matdoc~zeile,
+         matdoc~budat,
+         matdoc~frbnr,
+         matdoc~ebeln,
+         matdoc~ebelp,
+         matdoc~matnr,
+         matdoc~charg,
+         matdoc~menge,
+         matdoc~wempf,
+         matdoc~bldat,
+         matdoc~werks
+   FROM ( ( matdoc INNER JOIN zlo_consegnato
+                          ON  matdoc~bwart EQ zlo_consegnato~bwart
+                          AND matdoc~grund EQ zlo_consegnato~grund )
+    INNER JOIN likp ON matdoc~xblnr EQ likp~vbeln )
+  INTO TABLE @gt_matdoc_um
+  WHERE matdoc~budat EQ @p_budat
+    AND matdoc~werks IN @s_werks1
+    AND matdoc~wempf IN @s_werks2
+    AND likp~wbstk NE 'C'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form matdoclikp
+*&---------------------------------------------------------------------*
+*& LIKP-WBSTK <> C
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM matdoczlo_disc_i.
+
+*  SELECT matdoc~mblnr,
+*         matdoc~mjahr,
+*         matdoc~zeile,
+*         matdoc~budat,
+*         matdoc~frbnr,
+*         matdoc~ebeln,
+*         matdoc~ebelp,
+*         matdoc~matnr,
+*         matdoc~charg,
+*         matdoc~menge,
+*         matdoc~wempf,
+*         matdoc~bldat,
+*         matdoc~werks
+*  FROM ( ( matdoc INNER JOIN zlo_consegnato
+*                          ON  matdoc~bwart EQ zlo_consegnato~bwart
+*                          AND matdoc~grund EQ zlo_consegnato~grund )
+* INNER JOIN zlo_disc_i ON  matdoc~ebeln EQ zlo_disc_i~ebeln
+*                       AND matdoc~ebelp EQ zlo_disc_i~ebelp )
+* INTO TABLE @gt_matdoc_um
+* WHERE matdoc~budat EQ @p_budat
+*  AND matdoc~werks IN @s_werks1
+*  AND matdoc~wempf IN @s_werks2
+*  AND zlo_disc_i~zstatus_disc = '2'.
+
+  SELECT matdoc~mblnr,
+         matdoc~mjahr,
+         matdoc~zeile,
+         matdoc~budat,
+         matdoc~frbnr,
+         matdoc~ebeln,
+         matdoc~ebelp,
+         matdoc~matnr,
+         matdoc~charg,
+         matdoc~menge,
+         matdoc~wempf,
+         matdoc~bldat,
+         matdoc~werks
+  FROM matdoc
+    INNER JOIN zlo_consegnato
+            ON  matdoc~bwart EQ zlo_consegnato~bwart
+           AND matdoc~grund EQ zlo_consegnato~grund
+ INTO TABLE @gt_matdoc_um
+ WHERE matdoc~budat EQ @p_budat
+  AND matdoc~werks IN @s_werks1
+  AND matdoc~wempf IN @s_werks2.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form mandatory_fields
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM mandatory_fields .
+
+  IF s_werks1[] IS INITIAL AND
+     s_werks2[] IS INITIAL.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+*    g_stop = 'X'.
+* DC : DL  CHG00017 - Report su consegnato Cedi -> PdV 1
+    MESSAGE 'Valorizzare il Magazzino o il Negozio'(001) TYPE 'S' DISPLAY LIKE 'E'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form ekbe
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM ekbe .
+
+  CHECK gt_ekkoekpo[] IS NOT INITIAL.
+
+  SELECT ebeln,
+         ebelp,
+         vgabe,
+         belnr,
+         bwart,
+         budat
+  FROM ekbe INTO TABLE @gt_ekbe
+  FOR ALL ENTRIES IN @gt_ekkoekpo
+  WHERE ebeln EQ @gt_ekkoekpo-ebeln
+    AND ebelp EQ @gt_ekkoekpo-ebelp
+    AND vgabe EQ '1'.
+
+  SORT gt_ekbe BY ebeln ebelp.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form change_columns_text
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> LR_COLUMNS
+*&---------------------------------------------------------------------*
+FORM change_columns_text  USING pr_columns TYPE REF TO cl_salv_columns_table.
+
+  DATA lr_column  TYPE REF TO cl_salv_column_table.
+
+  TRY.
+      lr_column ?= pr_columns->get_column( 'BUDAT1' ).
+      lr_column->set_short_text( 'Data cons.'(002) ).
+      lr_column->set_medium_text( 'Data consegna'(003) ).
+      lr_column->set_long_text( 'Data consegna'(003) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column ?= pr_columns->get_column( 'WERKS1' ).
+      lr_column->set_short_text( 'Mag. Sped.'(004) ).
+      lr_column->set_medium_text( 'Mag. Spedizione'(005) ).
+      lr_column->set_long_text( 'Mag. Spedizione'(005) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column ?= pr_columns->get_column( 'WERKS2' ).
+      lr_column->set_short_text( 'Neg. Ric.'(006) ).
+      lr_column->set_medium_text( 'Neg. Ricezione'(007) ).
+      lr_column->set_long_text( 'Neg. Ricezione'(007) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column ?= pr_columns->get_column( 'SSCC' ).
+      lr_column->set_short_text( 'SSCC'(008) ).
+      lr_column->set_medium_text( 'SSCC'(008) ).
+      lr_column->set_long_text( 'SSCC'(008) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column ?= pr_columns->get_column( 'BLDAT' ).
+      lr_column->set_short_text( 'Data Bolla'(009) ).
+      lr_column->set_medium_text( 'Data Bolla'(009) ).
+      lr_column->set_long_text( 'Data Bolla'(009) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column ?= pr_columns->get_column( 'FRBNR' ).
+      lr_column->set_short_text( 'Num. Bolla'(010) ).
+      lr_column->set_medium_text( 'Num. Bolla'(010) ).
+      lr_column->set_long_text( 'Num. Bolla'(010) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form mcha
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM mcha .
+
+  CHECK gt_matdoc_um[] IS NOT INITIAL.
+
+  SELECT matnr,
+         werks,
+         charg,
+         licha
+  FROM mcha INTO TABLE @gt_mcha
+  FOR ALL ENTRIES IN @gt_matdoc_um[]
+  WHERE matnr EQ @gt_matdoc_um-matnr
+    AND werks EQ @gt_matdoc_um-werks
+    AND charg EQ @gt_matdoc_um-charg.
+
+  SORT gt_mcha BY matnr werks charg.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form vekpvepo
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM vekpvepo .
+
+*  CHECK gt_ekbe[] IS NOT INITIAL.
+*
+*  DATA lt_ekbe TYPE tt_ekbe.
+*
+*  lt_ekbe[] = gt_ekbe[].
+*
+*  DELETE lt_ekbe WHERE vgabe NE '6'.
+*  CHECK lt_ekbe[] IS NOT INITIAL.
+*
+*  SELECT vepo~vbeln,
+*         vepo~posnr,
+*         vepo~venum,
+*         vekp~exidv
+*  FROM vekp INNER JOIN vepo ON vekp~venum EQ vepo~venum
+*  INTO TABLE @gt_vekpvepo
+*  FOR ALL ENTRIES IN @lt_ekbe
+*  WHERE vepo~vbeln EQ @lt_ekbe-belnr.
+
+  CHECK gt_ekes[] IS NOT INITIAL.
+
+  SELECT vepo~vbeln,
+         vepo~posnr,
+         vepo~venum,
+         vekp~exidv
+  FROM vekp INNER JOIN vepo ON vekp~venum EQ vepo~venum
+  INTO TABLE @gt_vekpvepo
+  FOR ALL ENTRIES IN @gt_ekes
+  WHERE vepo~vbeln EQ @gt_ekes-vbeln
+    AND vepo~posnr EQ @gt_ekes-vbelp.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form ekes
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM ekes .
+
+  CHECK gt_ekkoekpo[] IS NOT INITIAL.
+
+  SELECT ebeln,
+         ebelp,
+         etens,
+         vbeln,
+         vbelp,
+         vbeln_st,
+         vbelp_st
+  FROM ekes INTO TABLE @gt_ekes
+  FOR ALL ENTRIES IN @gt_ekkoekpo
+  WHERE ebeln EQ @gt_ekkoekpo-ebeln
+    AND ebelp EQ @gt_ekkoekpo-ebelp.
+
+  SORT gt_ekes BY ebeln ebelp.
+
+ENDFORM.
+
+
+*---------------------
+* class implimentation
+*
+CLASS LCL_HANDLE_EVENTS IMPLEMENTATION.
+  METHOD ON_CLICK.
+    CASE SY-UCOMM.
+
+      WHEN '&ZEXCEL'.
+         PERFORM DOWNLOAD_EXCEL.
+
+      ENDCASE.
+  ENDMETHOD.                    "on_click
+ENDCLASS.                    "lcl_handle_events IMPLEMENTATION
+*&---------------------------------------------------------------------*
+*& Form DOWNLOAD_EXCEL
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM download_excel .
+ DATA: LA_FILENAME TYPE STRING,
+       LT_HEAD_FILE    TYPE TABLE OF STRING.
+  PERFORM F4_FILE_SAVE CHANGING LA_FILENAME.
+
+  CHECK NOT LA_FILENAME IS INITIAL.
+
+
+  CALL METHOD CL_GUI_FRONTEND_SERVICES=>GUI_DOWNLOAD
+    EXPORTING
+      BIN_FILESIZE            = SPACE
+      FILENAME                = LA_FILENAME
+      FILETYPE                = 'DAT'
+*      FIELDNAMES              = LT_HEADER
+" If the header is needed then get the structure with SALV method and insert the fieldnames in the internal table
+    CHANGING
+      DATA_TAB                = gt_output
+    EXCEPTIONS
+      FILE_WRITE_ERROR        = 1
+      NO_BATCH                = 2
+      GUI_REFUSE_FILETRANSFER = 3
+      INVALID_TYPE            = 4
+      NO_AUTHORITY            = 5
+      UNKNOWN_ERROR           = 6
+      HEADER_NOT_ALLOWED      = 7
+      SEPARATOR_NOT_ALLOWED   = 8
+      FILESIZE_NOT_ALLOWED    = 9
+      HEADER_TOO_LONG         = 10
+      DP_ERROR_CREATE         = 11
+      DP_ERROR_SEND           = 12
+      DP_ERROR_WRITE          = 13
+      UNKNOWN_DP_ERROR        = 14
+      ACCESS_DENIED           = 15
+      DP_OUT_OF_MEMORY        = 16
+      DISK_FULL               = 17
+      DP_TIMEOUT              = 18
+      FILE_NOT_FOUND          = 19
+      DATAPROVIDER_EXCEPTION  = 20
+      CONTROL_FLUSH_ERROR     = 21
+      NOT_SUPPORTED_BY_GUI    = 22
+      ERROR_NO_GUI            = 23
+      OTHERS                  = 24.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form F4_FILE_SAVE
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- LA_FILENAME
+*&---------------------------------------------------------------------*
+
+FORM F4_FILE_SAVE
+     CHANGING PC_FILE.
+
+  DATA: LA_FILENAME     TYPE STRING,
+        LA_PATH         TYPE STRING,
+        LA_FULLPATH     TYPE STRING,
+        LR_GUI_SERVICES TYPE REF TO CL_GUI_FRONTEND_SERVICES.
+
+
+  CREATE OBJECT LR_GUI_SERVICES.
+
+  CALL METHOD LR_GUI_SERVICES->FILE_SAVE_DIALOG
+    EXPORTING
+      DEFAULT_EXTENSION         = 'XLS'
+    CHANGING
+      FILENAME                  = LA_FILENAME
+      PATH                      = LA_PATH
+      FULLPATH                  = LA_FULLPATH
+    EXCEPTIONS
+      CNTL_ERROR                = 1
+      ERROR_NO_GUI              = 2
+      NOT_SUPPORTED_BY_GUI      = 3
+      INVALID_DEFAULT_FILE_NAME = 4
+      OTHERS                    = 5.
+
+  PC_FILE = LA_FULLPATH.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form PREPARE_HEADER
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      <-- LT_HEAD_FILE
+*&---------------------------------------------------------------------*
+FORM prepare_header  CHANGING TC_HEAD_FILE TYPE STANDARD TABLE.
+
+ENDFORM.

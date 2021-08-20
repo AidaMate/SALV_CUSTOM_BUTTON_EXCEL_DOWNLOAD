@@ -1,0 +1,28 @@
+*&---------------------------------------------------------------------*
+*& Report ZCONS_CEDI
+*&---------------------------------------------------------------------*
+*& TK# CHG00017
+*&---------------------------------------------------------------------*
+REPORT ztest_excel_a.
+
+INCLUDE ZTOP_AM.
+*INCLUDE zcons_cedi_top.
+
+INITIALIZATION.
+
+  PERFORM bwart_em.
+
+AT SELECTION-SCREEN.
+
+  PERFORM mandatory_fields.
+
+START-OF-SELECTION.
+
+  PERFORM: extraction,
+           elaboration,
+           display.
+
+END-OF-SELECTION.
+
+INCLUDE ZF01_AM.
+*  INCLUDE zcons_cedi_f01.
